@@ -1,0 +1,251 @@
+---
+title: Server Hosting
+description: Host MCP Servers on MCP.so
+---
+
+## Good to Know
+
+before hosting your MCP Server to [MCP.so](https://mcp.so), good to know:
+
+- Your MCP Server should be Open-Sourced, with Commercial-Use-Friendly License like MIT, Apache, etc.
+- Your MCP Server won't read local datas, like files, local databases, etc.
+- Your MCP Server currently running with `stdio` transport, not suitable for concurrent calls.
+
+## Host Your MCP Server
+
+follow these steps to host your MCP Server on [MCP.so](https://mcp.so)
+
+1. Install SDK by `@chatmcp`
+
+```shell
+npm install @chatmcp/sdk
+```
+
+2. Modify the way parameters are passed
+
+```typescript
+// before: get params from env and set as global params
+
+// Retrieve the Perplexity API key from environment variables
+// const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+// if (!PERPLEXITY_API_KEY) {
+//   console.error("Error: PERPLEXITY_API_KEY environment variable is required");
+//   process.exit(1);
+// }
+
+// after: get params from env or command line, set as global params
+import { getParamValue, getAuthValue } from "@chatmcp/sdk/utils/index.js";
+
+const perplexityApiKey = getParamValue("perplexity_api_key") || "";
+
+const mode = getParamValue("mode") || "stdio";
+const port = getParamValue("port") || 9593;
+const endpoint = getParamValue("endpoint") || "/rest";
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  try {
+    // before: use global params
+
+    // after: get auth params from request, if global params not set
+    const apiKey =
+      perplexityApiKey || getAuthValue(request, "PERPLEXITY_API_KEY");
+    if (!apiKey) {
+      throw new Error("PERPLEXITY_API_KEY not set");
+    }
+
+    const { name, arguments: args } = request.params;
+    if (!args) {
+      throw new Error("No arguments provided");
+    }
+    switch (name) {
+      case "perplexity_ask": {
+        if (!Array.isArray(args.messages)) {
+          throw new Error(
+            "Invalid arguments for perplexity_ask: 'messages' must be an array"
+          );
+        }
+
+        const messages = args.messages;
+
+        // before: use global params in every function
+        // const result = await performChatCompletion(
+        //   messages,
+        //   "sonar-pro"
+        // );
+
+        // after: pass params to every function
+        const result = await performChatCompletion(
+          apiKey,
+          messages,
+          "sonar-pro"
+        );
+
+        return {
+          content: [{ type: "text", text: result }],
+          isError: false,
+        };
+      }
+      // ...
+    }
+  } catch (error) {
+    // Return error details in the response
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        },
+      ],
+      isError: true,
+    };
+  }
+});
+```
+
+3. Add rest server transport
+
+```typescript
+import { RestServerTransport } from "@chatmcp/sdk/server/rest.js";
+
+async function runServer() {
+  try {
+    // after: MCP Server run with rest transport and stdio transport
+    if (mode === "rest") {
+      const transport = new RestServerTransport({
+        port,
+        endpoint,
+      });
+      await server.connect(transport);
+
+      await transport.startServer();
+
+      return;
+    }
+
+    // before: MCP Server only run with stdio transport
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error(
+      "Perplexity MCP Server running on stdio with Ask, Research, and Reason tools"
+    );
+  } catch (error) {
+    console.error("Fatal error running server:", error);
+    process.exit(1);
+  }
+}
+```
+
+4. Add `Dockerfile`
+
+```dockerfile
+FROM node:22.12-alpine AS builder
+
+COPY ./ /app
+
+WORKDIR /app
+
+RUN --mount=type=cache,target=/root/.npm npm install
+
+FROM node:22.12-alpine AS release
+
+WORKDIR /app
+
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/package.json /app/package.json
+COPY --from=builder /app/package-lock.json /app/package-lock.json
+
+ENV NODE_ENV=production
+
+RUN npm ci --ignore-scripts --omit-dev
+
+ENTRYPOINT ["node", "dist/index.js"]
+```
+
+5. Add `chatmcp.yaml`
+
+```yaml
+
+params:
+  type: object
+  properties:
+    PERPLEXITY_API_KEY:
+      type: string
+      description: Perplexity Sonar API Key
+  required:
+    - PERPLEXITY_API_KEY
+
+rest:
+  name: perplexity
+  port: 9593
+  endpoint: /rest
+
+npx:
+  command:
+    | PERPLEXITY_API_KEY={PERPLEXITY_API_KEY} npx -y server-perplexity-ask
+  config:
+    | {
+        "mcpServers": {
+          "perplexity-ask": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "server-perplexity-ask"
+            ],
+            "env": {
+              "PERPLEXITY_API_KEY": "YOUR_API_KEY_HERE"
+            }
+          }
+        }
+      }
+
+docker:
+  command:
+    | docker run -i --rm -e PERPLEXITY_API_KEY={PERPLEXITY_API_KEY} mcp/perplexity-ask
+  config:
+    | {
+        "mcpServers": {
+          "perplexity-ask": {
+            "command": "docker",
+            "args": [
+              "run",
+              "-i",
+              "--rm",
+              "-e",
+              "PERPLEXITY_API_KEY",
+              "mcp/perplexity-ask"
+            ],
+            "env": {
+              "PERPLEXITY_API_KEY": "YOUR_API_KEY_HERE"
+            }
+          }
+        }
+      }
+```
+
+6. Upload your MCP Server code to Github
+
+7. [Submit your MCP Server](https://mcp.so/submit) to MCP.so
+
+8. We will review your MCP Server to ensure it is ready for Hosting.
+
+9. You will see your MCP Server on [MCP Playground](https://mcp.so/playground) after it is hosted.
+
+## Hosting Servers Examples
+
+- [perplexity-ask](https://github.com/chatmcp/mcp-server-perplexity/commit/b79f60b823c2ccf2ef09f7701a7f2d114f8b3a28)
+- [mcp-server-flomo](https://github.com/chatmcp/mcp-server-flomo/commit/36e9675858890838d64e32b671719815bd9440ad)
+- [aws-kb-retrieval-server](https://github.com/chatmcp/servers/commit/e7ffbc5193d4d77652725e2af9c93b0c04ff32e5)
+- [github](https://github.com/chatmcp/servers/commit/05f39038fca626e79ae2c2e2235a923df59d7518)
+- [everart](https://github.com/chatmcp/servers/commit/8e4fb2b4b994bcb4e446df3f08d195a6991eb830)
+- [brave-search](https://github.com/chatmcp/servers/commit/a81618e727452792ba6a6ec428628f26a0af875e)
+
+## Contact Us
+
+contact us via the following channels to ask for help.
+
+- [Discord](https://discord.com/invite/RsYPRrnyqg)
+- [Telegram](https://t.me/+N0gv4O9SXio2YWU1)
+- [Twitter](https://x.com/chatmcp)
+- [Github Issues](https://github.com/chatmcp/mcp-directory/issues)

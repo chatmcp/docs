@@ -1,4 +1,4 @@
-import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 
 /**
  * Shared layout configurations
@@ -11,23 +11,23 @@ export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-        <svg
-          width="24"
-          height="24"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-label="Logo"
-        >
-          <circle cx={12} cy={12} r={12} fill="currentColor" />
-        </svg>
-        My App
+        <img src="/logo.png" alt="MCP.so Docs" className="w-8 h-8 mb-1" />
+        MCP.so Docs
       </>
     ),
   },
   links: [
     {
-      text: 'Documentation',
-      url: '/docs',
-      active: 'nested-url',
+      text: "Explore MCP Servers",
+      url: "https://mcp.so/explore",
+    },
+    {
+      text: "MCP Server Playground",
+      url: "https://mcp.so/playground",
+    },
+    {
+      text: "Submit Your MCP Server",
+      url: "https://mcp.so/submit",
     },
   ],
 };
