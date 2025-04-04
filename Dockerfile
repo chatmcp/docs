@@ -7,8 +7,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
+# Copy the entire project first to ensure config files are available
+COPY . .
+
 # Install dependencies based on the preferred package manager
-COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
