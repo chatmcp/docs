@@ -18,9 +18,22 @@ FROM deps AS builder
 
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# Copy source code
 COPY . .
+
+# Ensure next.config.js has output: 'standalone' configuration
+RUN grep -q "output: 'standalone'" next.config.js || echo "Standalone output config is missing in next.config.js"
+
+# Build the application
 RUN pnpm build
+
+# Verify the standalone output was created
+RUN ls -la .next/ && \
+    if [ ! -d ".next/standalone" ]; then \
+      echo "ERROR: .next/standalone directory was not created by the build"; \
+      echo "Make sure next.config.js has output: 'standalone' configuration"; \
+      exit 1; \
+    fi
 
 # Production image, copy all the files and run next
 FROM base AS runner
